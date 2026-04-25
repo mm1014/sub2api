@@ -453,10 +453,10 @@ func TestAuthService_RefreshToken_ExpiredTokenNoPanic(t *testing.T) {
 
 func TestAuthService_GetAccessTokenExpiresIn_FallbackToExpireHour(t *testing.T) {
 	service := newAuthService(&userRepoStub{}, nil, nil)
-	service.cfg.JWT.ExpireHour = 24
+	service.cfg.JWT.ExpireHour = 87600
 	service.cfg.JWT.AccessTokenExpireMinutes = 0
 
-	require.Equal(t, 24*3600, service.GetAccessTokenExpiresIn())
+	require.Equal(t, 87600*3600, service.GetAccessTokenExpiresIn())
 }
 
 func TestAuthService_GetAccessTokenExpiresIn_MinutesHasPriority(t *testing.T) {

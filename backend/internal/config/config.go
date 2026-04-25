@@ -1850,8 +1850,8 @@ func (c *Config) Validate() error {
 	if c.JWT.ExpireHour <= 0 {
 		return fmt.Errorf("jwt.expire_hour must be positive")
 	}
-	if c.JWT.ExpireHour > 168 {
-		return fmt.Errorf("jwt.expire_hour must be <= 168 (7 days)")
+	if c.JWT.ExpireHour > 87600 {
+		return fmt.Errorf("jwt.expire_hour must be <= 87600 (10 years)")
 	}
 	if c.JWT.ExpireHour > 24 {
 		slog.Warn("jwt.expire_hour is high; consider shorter expiration for security", "expire_hour", c.JWT.ExpireHour)

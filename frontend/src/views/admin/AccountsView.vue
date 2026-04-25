@@ -147,7 +147,7 @@
           ref="dataTableRef"
           :columns="cols"
           :data="accounts"
-          :loading="loading"
+          :loading="tableLoading"
           row-key="id"
           :server-side-sort="true"
           @sort="handleSort"
@@ -170,11 +170,11 @@
             <input type="checkbox" :checked="isSelected(row.id)" @change="toggleSel(row.id)" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
           </template>
           <template #cell-name="{ row, value }">
-            <div class="flex flex-col">
-              <span class="font-medium text-gray-900 dark:text-white">{{ value }}</span>
+            <div class="flex w-48 max-w-[12rem] flex-col">
+              <span class="block truncate font-medium text-gray-900 dark:text-white" :title="value">{{ value }}</span>
               <span
                 v-if="row.extra?.email_address"
-                class="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[200px]"
+                class="block max-w-full truncate text-xs text-gray-500 dark:text-gray-400"
                 :title="row.extra.email_address"
               >
                 {{ row.extra.email_address }}
@@ -226,6 +226,19 @@
               :today-stats-loading="todayStatsLoading"
               :manual-refresh-token="usageManualRefreshToken"
             />
+          </template>
+          <template #cell-ip_location="{ row }">
+            <span
+              v-if="formatProxyIPLocation(row)"
+              :class="[
+                'inline-flex max-w-[13rem] items-center rounded-md border px-2.5 py-1 text-xs font-medium shadow-sm',
+                getProxyIPLocationBadgeClass(row)
+              ]"
+              :title="formatProxyIPLocation(row)"
+            >
+              <span class="block truncate">{{ formatProxyIPLocation(row) }}</span>
+            </span>
+            <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
           </template>
           <template #cell-proxy="{ row }">
             <div v-if="row.proxy" class="flex items-center gap-2">
@@ -681,6 +694,10 @@ const resetAutoRefreshCache = () => {
 }
 
 const isFirstLoad = ref(true)
+const sortingRefreshInFlight = ref(false)
+const tableLoading = computed(() => {
+  return loading.value && !(sortingRefreshInFlight.value && accounts.value.length > 0)
+})
 
 const load = async () => {
   const requestParams = params as any
@@ -727,7 +744,7 @@ const handlePageSizeChange = (size: number) => {
   baseHandlePageSizeChange(size)
 }
 
-const handleSort = (key: string, order: AccountSortOrder) => {
+const handleSort = async (key: string, order: AccountSortOrder) => {
   sortState.sort_by = key
   sortState.sort_order = order
   const requestParams = params as any
@@ -737,7 +754,12 @@ const handleSort = (key: string, order: AccountSortOrder) => {
   hasPendingListSync.value = false
   resetAutoRefreshCache()
   pendingTodayStatsRefresh.value = true
-  load()
+  sortingRefreshInFlight.value = true
+  try {
+    await load()
+  } finally {
+    sortingRefreshInFlight.value = false
+  }
 }
 
 watch(loading, (isLoading, wasLoading) => {
@@ -942,11 +964,41 @@ function getAntigravityTierClass(row: any): string {
   }
 }
 
+function formatProxyIPLocation(row: Account): string {
+  const proxy = row.proxy
+  const ip = proxy?.ip_address?.trim()
+  if (!ip) return ''
+  const country = proxy?.country?.trim() || proxy?.country_code?.trim() || ''
+  return country ? `${ip}（${country}）` : ip
+}
+
+function getProxyIPLocationBadgeClass(row: Account): string {
+  const ip = row.proxy?.ip_address?.trim()
+  if (!ip) return 'border-gray-200 bg-gray-50 text-gray-500 dark:border-dark-600 dark:bg-dark-800 dark:text-dark-300'
+
+  const palette = [
+    'border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-700/60 dark:bg-blue-950/40 dark:text-blue-200',
+    'border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-700/60 dark:bg-emerald-950/40 dark:text-emerald-200',
+    'border-violet-300 bg-violet-50 text-violet-700 dark:border-violet-700/60 dark:bg-violet-950/40 dark:text-violet-200',
+    'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-200',
+    'border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-700/60 dark:bg-rose-950/40 dark:text-rose-200',
+    'border-cyan-300 bg-cyan-50 text-cyan-700 dark:border-cyan-700/60 dark:bg-cyan-950/40 dark:text-cyan-200',
+    'border-indigo-300 bg-indigo-50 text-indigo-700 dark:border-indigo-700/60 dark:bg-indigo-950/40 dark:text-indigo-200',
+    'border-teal-300 bg-teal-50 text-teal-700 dark:border-teal-700/60 dark:bg-teal-950/40 dark:text-teal-200'
+  ]
+
+  let hash = 0
+  for (let i = 0; i < ip.length; i += 1) {
+    hash = (hash * 31 + ip.charCodeAt(i)) >>> 0
+  }
+  return palette[hash % palette.length]
+}
+
 // All available columns
 const allColumns = computed(() => {
   const c = [
     { key: 'select', label: '', sortable: false },
-    { key: 'name', label: t('admin.accounts.columns.name'), sortable: true },
+    { key: 'name', label: t('admin.accounts.columns.name'), sortable: true, class: 'w-48 max-w-[12rem]' },
     { key: 'platform_type', label: t('admin.accounts.columns.platformType'), sortable: false },
     { key: 'capacity', label: t('admin.accounts.columns.capacity'), sortable: false },
     { key: 'status', label: t('admin.accounts.columns.status'), sortable: true },
@@ -958,6 +1010,7 @@ const allColumns = computed(() => {
   }
   c.push(
     { key: 'usage', label: t('admin.accounts.columns.usageWindows'), sortable: false },
+    { key: 'ip_location', label: t('admin.accounts.columns.ipLocation'), sortable: false, class: 'w-52 max-w-[13rem]' },
     { key: 'proxy', label: t('admin.accounts.columns.proxy'), sortable: false },
     { key: 'priority', label: t('admin.accounts.columns.priority'), sortable: true },
     { key: 'rate_multiplier', label: t('admin.accounts.columns.billingRateMultiplier'), sortable: true },

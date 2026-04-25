@@ -259,16 +259,21 @@ type AccountGroup struct {
 }
 
 type Proxy struct {
-	ID        int64     `json:"id"`
-	Name      string    `json:"name"`
-	Protocol  string    `json:"protocol"`
-	Host      string    `json:"host"`
-	Port      int       `json:"port"`
-	Username  string    `json:"username"`
-	Password  string    `json:"-"`
-	Status    string    `json:"status"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID          int64     `json:"id"`
+	Name        string    `json:"name"`
+	Protocol    string    `json:"protocol"`
+	Host        string    `json:"host"`
+	Port        int       `json:"port"`
+	Username    string    `json:"username"`
+	Password    string    `json:"-"`
+	Status      string    `json:"status"`
+	IPAddress   string    `json:"ip_address,omitempty"`
+	Country     string    `json:"country,omitempty"`
+	CountryCode string    `json:"country_code,omitempty"`
+	Region      string    `json:"region,omitempty"`
+	City        string    `json:"city,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 type ProxyWithAccountCount struct {

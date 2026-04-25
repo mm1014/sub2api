@@ -2576,6 +2576,7 @@ export default {
         todayStats: 'Today Stats',
         groups: 'Groups',
         usageWindows: 'Usage Windows',
+        ipLocation: 'IP Location',
         proxy: 'Proxy',
         lastUsed: 'Last Used',
         expiresAt: 'Expires At',

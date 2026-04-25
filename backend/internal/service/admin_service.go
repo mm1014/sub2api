@@ -2033,6 +2033,7 @@ func (s *adminServiceImpl) ListAccounts(ctx context.Context, page, pageSize int,
 	if err != nil {
 		return nil, 0, err
 	}
+	s.attachAccountProxyLatency(ctx, accounts)
 	return accounts, result.Total, nil
 }
 
@@ -3139,6 +3140,50 @@ func (s *adminServiceImpl) attachProxyLatency(ctx context.Context, proxies []Pro
 		proxies[i].QualityGrade = info.QualityGrade
 		proxies[i].QualitySummary = info.QualitySummary
 		proxies[i].QualityChecked = info.QualityCheckedAt
+	}
+}
+
+func (s *adminServiceImpl) attachAccountProxyLatency(ctx context.Context, accounts []Account) {
+	if s.proxyLatencyCache == nil || len(accounts) == 0 {
+		return
+	}
+
+	seen := make(map[int64]struct{})
+	ids := make([]int64, 0, len(accounts))
+	for i := range accounts {
+		if accounts[i].Proxy == nil || accounts[i].Proxy.ID <= 0 {
+			continue
+		}
+		id := accounts[i].Proxy.ID
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	if len(ids) == 0 {
+		return
+	}
+
+	latencies, err := s.proxyLatencyCache.GetProxyLatencies(ctx, ids)
+	if err != nil {
+		logger.LegacyPrintf("service.admin", "Warning: load account proxy latency cache failed: %v", err)
+		return
+	}
+
+	for i := range accounts {
+		if accounts[i].Proxy == nil {
+			continue
+		}
+		info := latencies[accounts[i].Proxy.ID]
+		if info == nil {
+			continue
+		}
+		accounts[i].Proxy.IPAddress = info.IPAddress
+		accounts[i].Proxy.Country = info.Country
+		accounts[i].Proxy.CountryCode = info.CountryCode
+		accounts[i].Proxy.Region = info.Region
+		accounts[i].Proxy.City = info.City
 	}
 }
 

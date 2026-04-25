@@ -8730,7 +8730,13 @@ func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64,
 	var accounts []Account
 	var err error
 
-	if groupID != nil {
+	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
+		if platform != "" {
+			accounts, err = s.accountRepo.ListSchedulableUngroupedByPlatform(ctx, platform)
+		} else {
+			accounts, err = s.accountRepo.ListSchedulable(ctx)
+		}
+	} else if groupID != nil {
 		accounts, err = s.accountRepo.ListSchedulableByGroupID(ctx, *groupID)
 	} else {
 		accounts, err = s.accountRepo.ListSchedulable(ctx)

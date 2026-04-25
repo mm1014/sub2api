@@ -109,12 +109,14 @@ func (s *sessionLimitCacheHotpathStub) SetWindowCost(ctx context.Context, accoun
 type modelsListAccountRepoStub struct {
 	AccountRepository
 
-	byGroup map[int64][]Account
-	all     []Account
-	err     error
+	byGroup   map[int64][]Account
+	all       []Account
+	ungrouped []Account
+	err       error
 
-	listByGroupCalls atomic.Int64
-	listAllCalls     atomic.Int64
+	listByGroupCalls   atomic.Int64
+	listAllCalls       atomic.Int64
+	listUngroupedCalls atomic.Int64
 }
 
 type stickyGatewayCacheHotpathStub struct {
@@ -166,6 +168,20 @@ func (s *modelsListAccountRepoStub) ListSchedulable(ctx context.Context) ([]Acco
 	out := make([]Account, len(s.all))
 	copy(out, s.all)
 	return out, nil
+}
+
+func (s *modelsListAccountRepoStub) ListSchedulableUngroupedByPlatform(ctx context.Context, platform string) ([]Account, error) {
+	s.listUngroupedCalls.Add(1)
+	if s.err != nil {
+		return nil, s.err
+	}
+	filtered := make([]Account, 0, len(s.ungrouped))
+	for _, acc := range s.ungrouped {
+		if acc.Platform == platform {
+			filtered = append(filtered, acc)
+		}
+	}
+	return filtered, nil
 }
 
 func resetGatewayHotpathStatsForTest() {
@@ -578,6 +594,40 @@ func TestGetAvailableModels_ErrorAndGlobalListBranches(t *testing.T) {
 	models := svcOK.GetAvailableModels(context.Background(), nil, "")
 	require.Equal(t, []string{"claude-3-5-sonnet", "gemini-2.5-pro"}, models)
 	require.Equal(t, int64(1), okRepo.listAllCalls.Load())
+
+	t.Run("simple_mode_uses_ungrouped_accounts_for_group_bound_key_models_list", func(t *testing.T) {
+		simpleRepo := &modelsListAccountRepoStub{
+			byGroup: map[int64][]Account{
+				5: nil,
+			},
+			ungrouped: []Account{
+				{
+					ID:       10,
+					Platform: PlatformOpenAI,
+					Credentials: map[string]any{
+						"model_mapping": map[string]any{
+							"gpt-5.5": "gpt-5.5",
+							"gpt-5.4": "gpt-5.4",
+						},
+					},
+				},
+			},
+		}
+		groupID := int64(5)
+		svcSimple := &GatewayService{
+			cfg: &config.Config{
+				RunMode: config.RunModeSimple,
+			},
+			accountRepo:        simpleRepo,
+			modelsListCache:    gocache.New(time.Minute, time.Minute),
+			modelsListCacheTTL: time.Minute,
+		}
+
+		models := svcSimple.GetAvailableModels(context.Background(), &groupID, PlatformOpenAI)
+		require.Equal(t, []string{"gpt-5.4", "gpt-5.5"}, models)
+		require.Equal(t, int64(1), simpleRepo.listUngroupedCalls.Load())
+		require.Equal(t, int64(0), simpleRepo.listByGroupCalls.Load())
+	})
 }
 
 func TestGatewayHotpathHelpers_CacheTTLAndStickyContext(t *testing.T) {

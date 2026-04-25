@@ -10,7 +10,7 @@
 #   2. mkdir -p data postgres_data redis_data
 #   3. docker-compose -f docker-compose.local.yml up -d
 #   4. Check logs: docker-compose -f docker-compose.local.yml logs -f sub2api
-#   5. Access: http://localhost:8080
+#   5. Access: http://localhost:8081
 #
 # Migration to New Server:
 #   1. docker-compose -f docker-compose.local.yml down
@@ -18,12 +18,15 @@
 #   3. Transfer to new server and extract
 #   4. docker-compose -f docker-compose.local.yml up -d
 # =============================================================================
-
+name: sub2apiproxy
 services:
   # ===========================================================================
   # Sub2API Application
   # ===========================================================================
   sub2api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
     image: weishaw/sub2api:latest
     container_name: sub2api
     restart: unless-stopped
@@ -32,7 +35,7 @@ services:
         soft: 100000
         hard: 100000
     ports:
-      - "${BIND_HOST:-0.0.0.0}:${SERVER_PORT:-8080}:8080"
+      - "${BIND_HOST:-0.0.0.0}:${SERVER_PORT:-8081}:8081"
     volumes:
       # Local directory mapping for easy migration
       - ./data:/app/data
@@ -49,7 +52,7 @@ services:
       # Server Configuration
       # =======================================================================
       - SERVER_HOST=0.0.0.0
-      - SERVER_PORT=8080
+      - SERVER_PORT=${SERVER_PORT:-8081}
       - SERVER_MODE=${SERVER_MODE:-release}
       - RUN_MODE=${RUN_MODE:-standard}
 
@@ -92,7 +95,9 @@ services:
       # will be generated on each startup.
       # Generate a secure secret: openssl rand -hex 32
       - JWT_SECRET=${JWT_SECRET:-}
-      - JWT_EXPIRE_HOUR=${JWT_EXPIRE_HOUR:-24}
+      - JWT_EXPIRE_HOUR=${JWT_EXPIRE_HOUR:-87600}
+      - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-0}
+      - JWT_REFRESH_TOKEN_EXPIRE_DAYS=${JWT_REFRESH_TOKEN_EXPIRE_DAYS:-3650}
 
       # =======================================================================
       # TOTP (2FA) Configuration
@@ -154,7 +159,7 @@ services:
     networks:
       - sub2api-network
     healthcheck:
-      test: ["CMD", "wget", "-q", "-T", "5", "-O", "/dev/null", "http://localhost:8080/health"]
+      test: ["CMD", "wget", "-q", "-T", "5", "-O", "/dev/null", "http://localhost:8081/health"]
       interval: 30s
       timeout: 10s
       retries: 3
